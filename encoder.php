@@ -1,32 +1,40 @@
 <?php
-
 require_once 'aws/sdk.class.php';
-require_once 'global.php';
 
-$args = getArgs();
-$failed = false;
+define('ROOT', dirname(__FILE__));
 
-$input_file_name = dirname(__FILE__)."/input_file";
-
-$output_file_name = dirname(__FILE__)."/randomoutput.mp4";
-$output_temp_file = dirname(__FILE__)."/random_output_tmp.mp4";
-$output_thumbnail_name = dirname(__FILE__)."/image_output_file.png";
-
-// get ffmpeg version
-exec('ffmpeg -version 2>&1', $ffmpeg_version_output);
-//echo "FFmpeg version: {$output}\n";
+global $s3;
+global $sqs;
+global $args;
 
 $s3 = new AmazonS3(array(
 	'key' => $args['aws_key'],
 	'secret' => $args['aws_secret']
 ));
-cURL_file($s3->get_object_url($args['bucket'], $args['input']));
+
+$sqs = new AmazonSQS(array(
+	'key' => $args['aws_key'],
+	'secret' => $args['aws_secret']
+));
+
+$args = getArgs();
+
+$input_file_name = ROOT."/input_file";
+if($args['output'] == 'mp4'){
+	$output_file_name = ROOT."/randomoutput.mp4";
+	$output_temp_file = ROOT."/random_output_tmp.mp4";
+}else{
+	$output_file_name = ROOT."/randomoutput.ogv";
+}
+$output_thumbnail_name = ROOT."/image_output_file.png";
+
+cURL_file($s3->get_object_url($args['bucket'], $args['input_file']));
 
 if((!file_exists($input_file_name)) || filesize($input_file_name) <= 1){
 	/*
 	 * If the file does not exist or is only 1 byte long (long enough for headers but not much else) then die
 	 */
-	fail_cURL('mp4');
+	send_SQS(false);
 }
 
 exec("ffprobe -show_format -show_streams $input_file_name", $output); // Let's butt probe this file to find out if it's valid
@@ -43,23 +51,23 @@ if(!empty($output)){
 	 * If we don't have a FORMAT or STREAM section something must be terribly wrong
 	 */
 	if(strlen($format_section) <= 0 || strlen($stream_section) <= 0){
-		fail_cURL('mp4');
+		send_SQS(false);
 	}
 
 	$duration = 0;
 	if(preg_match('/duration=[0-9]+\.[0-9]+/', $format_section, $matches) > 0){ // Look for a duration within it all
 
 		if(sizeof($matches) <= 0)
-			fail_cURL('mp4'); // No duration is another problem
+			send_SQS(false); // No duration is another problem
 
 		$duration = preg_replace('/duration=/', '', $matches[0]); // Let's get the actual duration (i.e. 5.0998)
 
 		if($duration <= 0 || preg_match('/[^0-9\.]+/', $duration) > 0){ // If duration is less than or equal to 0 or it contains anyhting but numbers and dots (i.e. 9.5432)
-			fail_cURL('mp4');
+			send_SQS(false);
 		}
 	}
 }else{
-	fail_cURL('mp4');
+	send_SQS(false);
 }
 
 /**
@@ -67,17 +75,19 @@ if(!empty($output)){
  *
  * LETS ENCODE!!!!
  */
-if($args['output'] == 'mp4'){
+if($args['output_format'] == 'mp4'){
 	$command = "ffmpeg -i $input_file_name -s 640:480 -vcodec libx264 -aspect 4:3 -r 100 -qscale 5 -b 300k -bt 300k -ac 2 -ar 48000 -ab 192k -y $output_temp_file 2>&1";
-}elseif($args['output'] == 'ogv'){
+}elseif($args['output_format'] == 'ogv'){
 	$command = "ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 5 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
 }
 
 exec($command, $encoding_output); //-s 640:480 -aspect 4:3 -r 65535/2733 -qscale 5 -ac 2 -ar 48000 -ab 192k
-exec("qt-faststart $output_temp_file $output_file_name");
+
+if($args['output_format'] == 'mp4')
+	exec("qt-faststart $output_temp_file $output_file_name");
 
 echo "The command ran was: ".$command;
-var_dump($encoding_output);
+//var_dump($encoding_output);
 
 $encoding_output_string = $encoding_output;
 if(is_array($encoding_output)){
@@ -85,13 +95,13 @@ if(is_array($encoding_output)){
 }
 
 if(preg_match('/Error while opening encoder/', $encoding_output_string) > 0){
-	fail_cURL('mp4'); // It means in undeniable error happened in encoding
+	send_SQS(false); // It means in undeniable error happened in encoding
 }
 
 /**
  * Now lets see if it validates and if it does lets put the finishing touches on
  */
-if(validate_video($output_file_name, 'mp4', 'aac', 'mpeg4')){
+if(validate_video($output_file_name)){
 
 	/*
 	 * From our duration we got earlier lets get a random second between 0 and max second without rounding and check the image file is real by chekcing its size is greater
@@ -106,7 +116,7 @@ if(validate_video($output_file_name, 'mp4', 'aac', 'mpeg4')){
 			/*
 			 * For the first 4 tries lets get a random image
 			 */
-			$int_duration = rand(0, $matches[0]);
+			$int_duration = rand(0, $matches[0] > 600 ? 600 : $matches[0]); // Let's limit the thumb time span by 10 mins cos else it takes a while
 			exec("ffmpeg -itsoffset -$int_duration -i $input_file_name -vcodec png -vframes 1 -an -f rawvideo -s 640x480 $output_thumbnail_name");
 
 			if(file_exists($output_thumbnail_name) && filesize($output_thumbnail_name) > 0){ break; } // If we've got our image lets carry on
@@ -118,7 +128,7 @@ if(validate_video($output_file_name, 'mp4', 'aac', 'mpeg4')){
 			exec("ffmpeg -itsoffset -1 -i $input_file_name -vcodec png -vframes 1 -an -f rawvideo -s 640x480 $output_thumbnail_name");
 
 			if(!file_exists($output_thumbnail_name) || filesize($output_thumbnail_name) <= 0){
-				fail_cURL('mp4'); // We couldn't seem to get an image for this
+				send_SQS(false); // We couldn't seem to get an image for this
 			}else{
 				break;
 			}
@@ -128,13 +138,13 @@ if(validate_video($output_file_name, 'mp4', 'aac', 'mpeg4')){
 	/*
 	 * Now lets recursively upload the video and its thumbnail back to S3 like good boys
 	 */
-	$v_upload_response = $s3->create_object($payload->bucket, 'randomOutput.mp4', array(
+	$v_upload_response = $s3->create_object($args['bucket'], pathinfo($output_file_name, PATHINFO_BASENAME), array(
 		'acl' => AmazonS3::ACL_PUBLIC,
 		'storage' => AmazonS3::STORAGE_REDUCED,
 		'fileUpload' => $output_file_name
 	));
 
-	$img_upload_response = $s3->create_object($payload->bucket, 'randomThumbnail.png', array(
+	$img_upload_response = $s3->create_object($args['bucket'], 'randomThumbnail.png', array(
 		'acl' => AmazonS3::ACL_PUBLIC,
 		'storage' => AmazonS3::STORAGE_REDUCED,
 		'fileUpload' => $output_thumbnail_name
@@ -143,17 +153,16 @@ if(validate_video($output_file_name, 'mp4', 'aac', 'mpeg4')){
 	// If they uploaded fine lets cURL a success containing the possible URLs etc
 	if($v_upload_response->isOK() & $img_upload_response->isOK()){
 		echo "everything went ok"; exit();
-		success_cURL(array(
-			'output' => 'mp4',
+		send_SQS(true, array(
 			'url' => $s3->get_object_url($payload->bucket, 'randomOutput.mp4'),
 			'thumbnail' => $s3->get_object_url($payload->bucket, 'randomThumbnail.png'),
 			'duration' => (int)($duration*1000)
 		));
 	}else{
-		fail_cURL('mp4'); /* FAIL */
+		send_SQS(false); /* FAIL */
 	}
 }else{
-	fail_cURL('mp4'); /* FAIL */
+	send_SQS(false); /* FAIL */
 }
 
 
@@ -220,13 +229,15 @@ function getArgs($argv){
 }
 
 
-function validate_video($output_file_name, $output, $audio_codec = 'aac', $video_codec = 'h264'){
+function validate_video($output_file_name, $output){
+
+	global $args;
 
 	if((!file_exists($output_file_name)) || filesize($output_file_name) <= 1){
 		/*
 		 * If the file does not exist or is only 1 byte long (long enough for headers but not much else) then die
 		 */
-		fail_cURL($output);
+		send_SQS(false);
 	}
 
 	exec("ffprobe -show_format -show_streams $output_file_name", $ffprobe_output);
@@ -236,7 +247,7 @@ function validate_video($output_file_name, $output, $audio_codec = 'aac', $video
 		/*
 		 * If the output is empty then it had problems opening the file for inspection
 		 */
-		fail_cURL($output);
+		send_SQS(false);
 	}
 
 	/*
@@ -250,7 +261,7 @@ function validate_video($output_file_name, $output, $audio_codec = 'aac', $video
 	 * If we don't have a FORMAT or STREAM section something must be terribly wrong
 	 */
 	if(strlen($format_section) <= 0 || strlen($stream_section) <= 0){
-		fail_cURL($output);
+		send_SQS(false);
 	}
 
 	// Now lets test for a duration to our file then we can finally test for the codecs used
@@ -259,12 +270,12 @@ function validate_video($output_file_name, $output, $audio_codec = 'aac', $video
 	if(preg_match('/duration=[0-9]+\.[0-9]+/', $format_section, $matches) > 0){ // Look for a duration within it all
 
 		if(sizeof($matches) <= 0)
-			fail_cURL($output); // No duration is another problem
+			send_SQS(false); // No duration is another problem
 
 		$duration = preg_replace('/duration=/', '', $matches[0]); // Let's get the actual duration (i.e. 5.0998)
 
 		if($duration <= 0 || preg_match('/[^0-9\.]+/', $duration) > 0){ // If duration is less than 0 or it contains anyhting but numbers and dots (i.e. 9.5432)
-			fail_cURL($output);
+			send_SQS(false);
 		}
 
 		/*
@@ -272,16 +283,16 @@ function validate_video($output_file_name, $output, $audio_codec = 'aac', $video
 		 */
 	}
 
-	if($args['output'] == 'mp4'){
+	if($args['output_format'] == 'mp4'){
 		$audio_codec = 'aac';
 		$video_codec = 'h264';
-	}elseif($args['output'] == 'ogv'){
+	}elseif($args['output_format'] == 'ogv'){
 		$audio_codec = 'theora';
 		$video_codec = 'vorbis';
 	}
 
-	if(preg_match("/codec_name=$audio_codec/", $stringify_output) > 0){ }else{ sendFail_SQS($output); }
-	if(preg_match("/codec_name=$video_codec/", $stringify_output) > 0){ }else{ fail_cURL($output); }
+	if(preg_match("/codec_name=$audio_codec/", $stringify_output) > 0){ }else{ send_SQS(false); }
+	if(preg_match("/codec_name=$video_codec/", $stringify_output) > 0){ }else{ send_SQS(false); }
 
 	/*
 	 * MY GOD! It might actually be a real file!
@@ -303,18 +314,27 @@ function cURL_file($url){
 
 
 function  magic_substr($string,$from,$to) {
-        if(preg_match("!".preg_quote($from)."(.*?)".preg_quote($to)."!",$string,$m)) {
-                return $m[1];
-        }
-        return '';
+	if(preg_match("!".preg_quote($from)."(.*?)".preg_quote($to)."!",$string,$m)) {
+    	return $m[1];
+    }
+    return '';
 }
 
-function sendSuccess_SQS($args, $result){
+function send_SQS($success, $fields = array()){
 
-}
+	global $sqs;
+	global $args;
 
-function sendFail_SQS($reason = 'NONE_PROVIDED'){
+	$response = $sqs->send_message('output-queue', json_encode(array_merge(array(
+		'id' => $args['id'],
+		'output' => $args['output'],
+		'input' => $args['input'],
+		'input_queue' => $args['input_queue'],
+		'time_started' => $args['time_started'],
+		'time_sent' => date('d-m-Y')
+	), $fields)));
 
+	if($response->isOk()){}
 }
 
 
