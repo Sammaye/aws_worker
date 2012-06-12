@@ -28,7 +28,8 @@ $sqs_message = $sqs->receive_message(QUEUE, array(
 
 $message = json_decode($sqs_message->getMessage());
 //exec(sprintf("%s > %s 2>&1 & echo $! >> %s", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output'], ROOT."/worker/encoder.log", "./pid.file"));
-$PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output'], ROOT."/worker/encoder.log"));
+$PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output']." --id=".$message['messageid'],
+	ROOT."/worker/encoder.log"));
 //$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
 sleep(60);
