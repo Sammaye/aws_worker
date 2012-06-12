@@ -17,10 +17,10 @@ $sqs = new AmazonSQS(array(
 	'secret' => $args['aws_secret']
 ));
 
-$args = getArgs();
+$args = getArgs($_SERVER['argv']);
 
 $input_file_name = ROOT."/input_file";
-if($args['output'] == 'mp4'){
+if($args['output_format'] == 'mp4'){
 	$output_file_name = ROOT."/randomoutput.mp4";
 	$output_temp_file = ROOT."/random_output_tmp.mp4";
 }else{
@@ -107,7 +107,6 @@ if(validate_video($output_file_name)){
 	 * From our duration we got earlier lets get a random second between 0 and max second without rounding and check the image file is real by chekcing its size is greater
 	 * than 0
 	 */
-
 	preg_match('/^[0-9]+/', $duration, $matches); // Lets get a strict int of the duration
 
 	// Lets try it 5 times else we will just get first frame else die mofo
@@ -144,7 +143,7 @@ if(validate_video($output_file_name)){
 		'fileUpload' => $output_file_name
 	));
 
-	$img_upload_response = $s3->create_object($args['bucket'], 'randomThumbnail.png', array(
+	$img_upload_response = $s3->create_object($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME), array(
 		'acl' => AmazonS3::ACL_PUBLIC,
 		'storage' => AmazonS3::STORAGE_REDUCED,
 		'fileUpload' => $output_thumbnail_name
@@ -154,8 +153,8 @@ if(validate_video($output_file_name)){
 	if($v_upload_response->isOK() & $img_upload_response->isOK()){
 		echo "everything went ok"; exit();
 		send_SQS(true, array(
-			'url' => $s3->get_object_url($payload->bucket, 'randomOutput.mp4'),
-			'thumbnail' => $s3->get_object_url($payload->bucket, 'randomThumbnail.png'),
+			'url' => $s3->get_object_url($args['bucket'], pathinfo($output_file_name, PATHINFO_BASENAME)),
+			'thumbnail' => $s3->get_object_url($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME)),
 			'duration' => (int)($duration*1000)
 		));
 	}else{
@@ -325,13 +324,15 @@ function send_SQS($success, $fields = array()){
 	global $sqs;
 	global $args;
 
-	$response = $sqs->send_message('output-queue', json_encode(array_merge(array(
+	$response = $sqs->send_message($args['output_queue'], json_encode(array_merge(array(
 		'id' => $args['id'],
-		'output' => $args['output'],
-		'input' => $args['input'],
+		'output' => $args['output_format'],
+		'input' => $args['input_file'],
 		'input_queue' => $args['input_queue'],
+		'bucket' => $args['bucket'],
 		'time_started' => $args['time_started'],
-		'time_sent' => date('d-m-Y')
+		'time_sent' => date('d-m-Y'),
+		'success' => $success
 	), $fields)));
 
 	if($response->isOk()){}
