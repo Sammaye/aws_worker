@@ -27,17 +27,14 @@ $sqs_message = $sqs->receive_message(QUEUE, array(
 ));
 
 $message = json_decode($sqs_message->getMessage());
-exec(sprintf("%s > %s 2>&1 & echo $! >> %s", "php ./worker/encoder.php", "./worker/encoder.log", "./pid.file"));
-
-/*
- * Or (for testing) Using this would mean I wouldn't be wrirting the pid to file. I can do this with my original command too
- */
- $PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
+//exec(sprintf("%s > %s 2>&1 & echo $! >> %s", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output'], ROOT."/worker/encoder.log", "./pid.file"));
+$PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output'], ROOT."/worker/encoder.log"));
+//$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
 sleep(60);
 
-$pid = file_get_contents(ROOT.'/pid.file');
-if(!isRunning($pid)){
+//$pid = file_get_contents(ROOT.'/pid.file');
+if(!isRunning($PID)){
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
 	exit();
@@ -50,7 +47,7 @@ $sqs->change_message_visibility(QUEUE, $sqs_message->receipt_handle, 120);
  * It is basically a watch dog that will end the cronjob etc if the process
  * stalls or server becomes unhealthy
  */
-while(isRunning($pid)){ // Start the loop to wait until the task is complete
+while(isRunning($PID)){ // Start the loop to wait until the task is complete
 	// Delay SQS
 	$sqs->change_message_visibility(QUEUE, $sqs_message->receipt_handle, 120);
 	sleep(60);
