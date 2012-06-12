@@ -326,16 +326,18 @@ function send_SQS($success, $fields = array()){
 
 	$response = $sqs->send_message($args['output_queue'], json_encode(array_merge(array(
 		'id' => $args['id'],
-		'output' => $args['output_format'],
-		'input' => $args['input_file'],
+		'output_format' => $args['output_format'],
+		'input_file' => $args['input_file'],
 		'input_queue' => $args['input_queue'],
 		'bucket' => $args['bucket'],
 		'time_started' => $args['time_started'],
-		'time_sent' => date('d-m-Y'),
+		'time_taken' => microtime(true) - $args['time_started'],
+		'time_sent' => date('d-m-Y H:i:s'),
 		'success' => $success
 	), $fields)));
 
 	if($response->isOk()){}
+	exit(); // Send SQS is a one way ticket....a ticket to HELL
 }
 
 
