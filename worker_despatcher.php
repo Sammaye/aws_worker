@@ -65,7 +65,7 @@ foreach($args as $k=>$v){
 $PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php".$arg_string, ROOT."/worker/encoder.log"));
 //$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
-if(!strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
+if(strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
 	flock($fp, LOCK_UN);    // release the lock // Don't delete the SQS message could the process might not have run at all
 	fclose($fp);
 	exit();
