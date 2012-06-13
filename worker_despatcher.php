@@ -23,23 +23,28 @@ $sqs = new AmazonSQS(array(
  * So I have my repo and my code and I have lock. Lets start this shit
  */
 $sqs_message = $sqs->receive_message(QUEUE, array(
-    'VisibilityTimeout' => 1
+    'VisibilityTimeout' => 120
 ));
 
-$message = json_decode($sqs_message->getMessage());
-var_dump($message);
-exit();
+if(!isset($sqs_message->body->ReceiveMessageResult->Message)){
+	flock($fp, LOCK_UN);    // release the lock
+	fclose($fp);
+	exit();
+}
+
+$message = json_decode($sqs_message->body->ReceiveMessageResult->Message->Body);
+
 /*
  * Check integrity of message commands, if something is missing bail
  */
-if(!isset($message->messageid) || !isset($message['bucket']) || !isset($message['input_file']) || !isset($message['output_format']) || !isset($message['output_queue'])){
+if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isset($message['bucket']) || !isset($message['input_file']) || !isset($message['output_format']) || !isset($message['output_queue'])){
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
 	exit();
 }
 
 $args = array(
-	'id' => $message->messageid,
+	'id' => $sqs_message->body->ReceiveMessageResult->Message->MessageId,
 	'aws_key' => AWS_KEY,
 	'aws_secret' => AWS_SECRET,
 	'bucket' => $message['bucket'],
@@ -68,7 +73,7 @@ if(!isRunning($PID)){
 	exit();
 }
 
-$sqs->change_message_visibility(QUEUE, $sqs_message->receipt_handle, 120);
+$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 120);
 
 /**
  * I want this script to run until the task completes.
@@ -77,10 +82,10 @@ $sqs->change_message_visibility(QUEUE, $sqs_message->receipt_handle, 120);
  */
 while(isRunning($PID)){ // Start the loop to wait until the task is complete
 	// Delay SQS
-	$sqs->change_message_visibility(QUEUE, $sqs_message->receipt_handle, 120);
+	$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 120);
 	sleep(60);
 }
-$sqs->delete_message(Queue, $sqs_message->receipt_handle);
+$sqs->delete_message(Queue, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle);
 
 flock($fp, LOCK_UN);    // release the lock
 fclose($fp);
