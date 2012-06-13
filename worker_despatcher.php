@@ -86,7 +86,7 @@ while(isRunning($PID)){ // Start the loop to wait until the task is complete
 }
 
 echo "Done! Deleting Message.";
-$sqs->delete_message(Queue, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle);
+$sqs->delete_message(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle);
 
 flock($fp, LOCK_UN);    // release the lock
 fclose($fp);
