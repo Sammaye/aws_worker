@@ -39,6 +39,7 @@ $message = json_decode($sqs_message->body->ReceiveMessageResult->Message->Body);
  */
 if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isset($message->bucket) || !isset($message->input_file) || !isset($message->output_format)
 			|| !isset($message->output_queue)){
+	echo "The SQS Message was Malformed";
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
 	exit();
@@ -66,6 +67,7 @@ $PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php".
 //$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
 if(strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
+	echo "No process found!!";
 	flock($fp, LOCK_UN);    // release the lock // Don't delete the SQS message could the process might not have run at all
 	fclose($fp);
 	exit();
@@ -81,6 +83,8 @@ while(isRunning($PID)){ // Start the loop to wait until the task is complete
 	$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 120);
 	sleep(60);
 }
+
+echo "Done! Deleting Message.";
 $sqs->delete_message(Queue, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle);
 
 flock($fp, LOCK_UN);    // release the lock
