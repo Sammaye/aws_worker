@@ -7,6 +7,8 @@ global $s3;
 global $sqs;
 global $args;
 
+$args = getArgs($_SERVER['argv']);
+
 $s3 = new AmazonS3(array(
 	'key' => $args['aws_key'],
 	'secret' => $args['aws_secret']
@@ -16,8 +18,6 @@ $sqs = new AmazonSQS(array(
 	'key' => $args['aws_key'],
 	'secret' => $args['aws_secret']
 ));
-
-$args = getArgs($_SERVER['argv']);
 
 $input_file_name = ROOT."/input_file";
 if($args['output_format'] == 'mp4'){
@@ -76,7 +76,7 @@ if(!empty($output)){
  * LETS ENCODE!!!!
  */
 if($args['output_format'] == 'mp4'){
-	$command = "ffmpeg -i $input_file_name -s 640:480 -vcodec libx264 -aspect 4:3 -r 100 -qscale 5 -b 300k -bt 300k -ac 2 -ar 48000 -ab 192k -y $output_temp_file 2>&1";
+	$command = "ffmpeg -i $input_file_name -vcodec libx264 -r 100 -bt 300k -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
 }elseif($args['output_format'] == 'ogv'){
 	$command = "ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 5 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
 }
@@ -116,7 +116,7 @@ if(validate_video($output_file_name)){
 			 * For the first 4 tries lets get a random image
 			 */
 			$int_duration = rand(0, $matches[0] > 600 ? 600 : $matches[0]); // Let's limit the thumb time span by 10 mins cos else it takes a while
-			exec("ffmpeg -itsoffset -$int_duration -i $input_file_name -vcodec png -vframes 1 -an -f rawvideo -s 640x480 $output_thumbnail_name");
+			exec("ffmpeg -itsoffset -$int_duration -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
 
 			if(file_exists($output_thumbnail_name) && filesize($output_thumbnail_name) > 0){ break; } // If we've got our image lets carry on
 		}else{
@@ -124,7 +124,7 @@ if(validate_video($output_file_name)){
 			/*
 			 * Last ditch attempt, get the first second
 			 */
-			exec("ffmpeg -itsoffset -1 -i $input_file_name -vcodec png -vframes 1 -an -f rawvideo -s 640x480 $output_thumbnail_name");
+			exec("ffmpeg -itsoffset -1 -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
 
 			if(!file_exists($output_thumbnail_name) || filesize($output_thumbnail_name) <= 0){
 				send_SQS(false); // We couldn't seem to get an image for this
@@ -151,7 +151,7 @@ if(validate_video($output_file_name)){
 
 	// If they uploaded fine lets cURL a success containing the possible URLs etc
 	if($v_upload_response->isOK() & $img_upload_response->isOK()){
-		echo "everything went ok"; exit();
+		echo "everything went ok";
 		send_SQS(true, array(
 			'url' => $s3->get_object_url($args['bucket'], pathinfo($output_file_name, PATHINFO_BASENAME)),
 			'thumbnail' => $s3->get_object_url($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME)),
