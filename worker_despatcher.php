@@ -65,16 +65,11 @@ foreach($args as $k=>$v){
 $PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php".$arg_string, ROOT."/worker/encoder.log"));
 //$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
-sleep(60);
-
-//$pid = file_get_contents(ROOT.'/pid.file');
-if(!isRunning($PID)){
-	flock($fp, LOCK_UN);    // release the lock
+if(!strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
+	flock($fp, LOCK_UN);    // release the lock // Don't delete the SQS message could the process might not have run at all
 	fclose($fp);
 	exit();
 }
-
-$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 120);
 
 /**
  * I want this script to run until the task completes.
