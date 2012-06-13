@@ -23,11 +23,12 @@ $sqs = new AmazonSQS(array(
  * So I have my repo and my code and I have lock. Lets start this shit
  */
 $sqs_message = $sqs->receive_message(QUEUE, array(
-    'VisibilityTimeout' => 120
+    'VisibilityTimeout' => 1
 ));
 
 $message = json_decode($sqs_message->getMessage());
-
+var_dump($message);
+exit();
 /*
  * Check integrity of message commands, if something is missing bail
  */
