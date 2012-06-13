@@ -37,7 +37,8 @@ $message = json_decode($sqs_message->body->ReceiveMessageResult->Message->Body);
 /*
  * Check integrity of message commands, if something is missing bail
  */
-if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isset($message['bucket']) || !isset($message['input_file']) || !isset($message['output_format']) || !isset($message['output_queue'])){
+if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isset($message->bucket) || !isset($message->input_file) || !isset($message->output_format)
+			|| !isset($message->output_queue)){
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
 	exit();
@@ -47,11 +48,11 @@ $args = array(
 	'id' => $sqs_message->body->ReceiveMessageResult->Message->MessageId,
 	'aws_key' => AWS_KEY,
 	'aws_secret' => AWS_SECRET,
-	'bucket' => $message['bucket'],
+	'bucket' => $message->bucket,
 	'input_queue' => QUEUE,
-	'output_queue' => $message['output_queue'],
-	'output_format' => $message['output_format'],
-	'input_file' => $message['input_file'],
+	'output_queue' => $message->output_queue,
+	'output_format' => $message->output_format,
+	'input_file' => $message->input_file,
 	'time_started' => $time_start,
 );
 
