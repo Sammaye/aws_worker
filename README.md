@@ -13,11 +13,13 @@ The worker takes JSON syntax in a string.
 
 Here is a sample of a OGV command:
 
-    {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "ogv", "output_queue": "https://us-west-2.queue.amazonaws.com/663341881510/outputsQueue"}
+    {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "ogv", "output_queue": "https://us-west-2.queue.amazonaws.com//outputsQueue"}
 
 And here is one of a MP4 command:
 
-    {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "mp4", "output_queue": "https://us-west-2.queue.amazonaws.com/663341881510/outputsQueue"}
+    {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "mp4", "output_queue": "https://us-west-2.queue.amazonaws.com//outputsQueue"}
+    
+You would send these strings as the message body in a SQS Message.
 
 ## Outputs Supported
 
