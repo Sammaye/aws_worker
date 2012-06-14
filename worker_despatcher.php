@@ -82,7 +82,7 @@ if(strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean
  */
 while(isRunning($PID)){ // Start the loop to wait until the task is complete
 	// Delay SQS
-	$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 120);
+	$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 240);
 	sleep(60);
 }
 
