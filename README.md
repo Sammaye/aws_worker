@@ -7,6 +7,32 @@ This worker basically takes an input FFMpeg file and output format and encodes t
 
 Due to the validation functions that are needed to be run you cannot send in your own FFMpeg commands but instead must use the ones baked into the script itself.
 
+## Getting it to run
+
+You must use a bootstrapper cronjob to get this worker to function. An example of one is:
+
+    define('ROOT', dirname(__FILE__)); // Should be either /home/ec2-user or /home/ubuntu
+
+    const AWS_KEY = '';
+    const AWS_SECRET = '';
+    const QUEUE = '';
+
+    exec('git clone https://github.com/Sammaye/aws_worker.git '.ROOT.'/worker');
+
+    if(!file_exists(ROOT.'/worker/worker_despatcher.php')){
+	    exit();
+    }
+
+    include_once ROOT.'/worker/worker_despatcher.php';
+
+You would place this either in your AMI or in your cloud template within the LaunchConfig section.
+
+This library does not require AWS to be downloaded but instead has it pre-bundled. I did this for a couple of reasons:
+
+- Version freeze on the API
+- Protected from sudden changes in core API
+- Less time to download it all with the worker than to let Amazon do both separately and then prep and build the API from sources.
+
 ## Sending commands to the worker
 
 The worker takes JSON syntax in a string.
