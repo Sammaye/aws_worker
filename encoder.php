@@ -1,6 +1,5 @@
 <?php
 require_once 'aws/sdk.class.php';
-
 define('ROOT', dirname(__FILE__));
 
 global $s3;
@@ -34,7 +33,7 @@ if((!file_exists($input_file_name)) || filesize($input_file_name) <= 1){
 	/*
 	 * If the file does not exist or is only 1 byte long (long enough for headers but not much else) then die
 	 */
-	send_SQS(false);
+	send_SQS(false, array('reason' => 'Failed to download correctly'));
 }
 
 exec("ffprobe -show_format -show_streams $input_file_name", $output); // Let's butt probe this file to find out if it's valid
@@ -51,23 +50,23 @@ if(!empty($output)){
 	 * If we don't have a FORMAT or STREAM section something must be terribly wrong
 	 */
 	if(strlen($format_section) <= 0 || strlen($stream_section) <= 0){
-		send_SQS(false);
+		send_SQS(false, array('reason' => 'Failed pre encoding checks: malformed ffprobe output'));
 	}
 
 	$duration = 0;
 	if(preg_match('/duration=[0-9]+\.[0-9]+/', $format_section, $matches) > 0){ // Look for a duration within it all
 
 		if(sizeof($matches) <= 0)
-			send_SQS(false); // No duration is another problem
+			send_SQS(false, array('reason' => 'Failed pre encoding checks: duration')); // No duration is another problem
 
 		$duration = preg_replace('/duration=/', '', $matches[0]); // Let's get the actual duration (i.e. 5.0998)
 
 		if($duration <= 0 || preg_match('/[^0-9\.]+/', $duration) > 0){ // If duration is less than or equal to 0 or it contains anyhting but numbers and dots (i.e. 9.5432)
-			send_SQS(false);
+			send_SQS(false, array('reason' => 'Failed pre encoding checks: duration'));
 		}
 	}
 }else{
-	send_SQS(false);
+	send_SQS(false, array('reason' => 'Failed pre encoding checks: no ffmpeg output'));
 }
 
 /**
@@ -95,7 +94,7 @@ if(is_array($encoding_output)){
 }
 
 if(preg_match('/Error while opening encoder/', $encoding_output_string) > 0){
-	send_SQS(false); // It means in undeniable error happened in encoding
+	send_SQS(false, array('reason' => 'Error While trying to encode', 'output' => $encoding_output_string)); // It means in undeniable error happened in encoding
 }
 
 /**
@@ -128,7 +127,7 @@ if(validate_video($output_file_name)){
 
 			if(!file_exists($output_thumbnail_name) || filesize($output_thumbnail_name) <= 0){
 				echo "died on images";
-				send_SQS(false); // We couldn't seem to get an image for this
+				send_SQS(false, array('reason' => 'Could not ascertain an image')); // We couldn't seem to get an image for this
 			}else{
 				break;
 			}
@@ -172,10 +171,11 @@ if(validate_video($output_file_name)){
 		));
 	}else{
 		echo "Shit coluldn't upload";
-		send_SQS(false); /* FAIL */
+		send_SQS(false, array('reason' => 'Could not upload', 'v_upload' => $v_upload_response->isOK(),
+			'img_upload' => $args['output_format'] == 'mp4' ? $img_upload_response->isOK() : true)); /* FAIL */
 	}
 }else{
-	send_SQS(false); /* FAIL */
+	send_SQS(false, array('reason' => 'Failed checks')); /* FAIL */
 }
 
 
@@ -250,7 +250,7 @@ function validate_video($output_file_name, $output){
 		/*
 		 * If the file does not exist or is only 1 byte long (long enough for headers but not much else) then die
 		 */
-		send_SQS(false);
+		send_SQS(false, array('reason' => 'Failed post encoding checks: File not exist'));
 	}
 
 	exec("ffprobe -show_format -show_streams $output_file_name", $ffprobe_output);
@@ -260,7 +260,7 @@ function validate_video($output_file_name, $output){
 		/*
 		 * If the output is empty then it had problems opening the file for inspection
 		 */
-		send_SQS(false);
+		send_SQS(false, array('reason' => 'Failed post encoding checks: No ffmpeg output'));
 	}
 
 	/*
@@ -274,7 +274,7 @@ function validate_video($output_file_name, $output){
 	 * If we don't have a FORMAT or STREAM section something must be terribly wrong
 	 */
 	if(strlen($format_section) <= 0 || strlen($stream_section) <= 0){
-		send_SQS(false);
+		send_SQS(false, array('reason' => 'Failed post encoding checks: Malformed ffprobe'));
 	}
 
 	// Now lets test for a duration to our file then we can finally test for the codecs used
@@ -283,12 +283,12 @@ function validate_video($output_file_name, $output){
 	if(preg_match('/duration=[0-9]+\.[0-9]+/', $format_section, $matches) > 0){ // Look for a duration within it all
 
 		if(sizeof($matches) <= 0)
-			send_SQS(false); // No duration is another problem
+			send_SQS(false, array('reason' => 'Failed post encoding checks: Duration')); // No duration is another problem
 
 		$duration = preg_replace('/duration=/', '', $matches[0]); // Let's get the actual duration (i.e. 5.0998)
 
 		if($duration <= 0 || preg_match('/[^0-9\.]+/', $duration) > 0){ // If duration is less than 0 or it contains anyhting but numbers and dots (i.e. 9.5432)
-			send_SQS(false);
+			send_SQS(false, array('reason' => 'Failed post encoding checks: Duration'));
 		}
 
 		/*
@@ -304,8 +304,8 @@ function validate_video($output_file_name, $output){
 		$video_codec = 'vorbis';
 	}
 
-	if(preg_match("/codec_name=$audio_codec/", $stringify_output) > 0){ }else{ send_SQS(false); }
-	if(preg_match("/codec_name=$video_codec/", $stringify_output) > 0){ }else{ send_SQS(false); }
+	if(preg_match("/codec_name=$audio_codec/", $stringify_output) > 0){ }else{ send_SQS(false, array('reason' => 'Failed post encoding checks: Codec')); }
+	if(preg_match("/codec_name=$video_codec/", $stringify_output) > 0){ }else{ send_SQS(false, array('reason' => 'Failed post encoding checks: Codec')); }
 
 	/*
 	 * MY GOD! It might actually be a real file!
