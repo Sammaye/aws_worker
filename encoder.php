@@ -78,7 +78,7 @@ if(!empty($output)){
 if($args['output_format'] == 'mp4'){
 	$command = "ffmpeg -i $input_file_name -vcodec libx264 -r 100 -bt 300k -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
 }elseif($args['output_format'] == 'ogv'){
-	$command = "ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 5 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
+	$command = "ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 6 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
 }
 
 exec($command, $encoding_output); //-s 640:480 -aspect 4:3 -r 65535/2733 -qscale 5 -ac 2 -ar 48000 -ab 192k
@@ -127,6 +127,7 @@ if(validate_video($output_file_name)){
 			exec("ffmpeg -itsoffset -1 -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
 
 			if(!file_exists($output_thumbnail_name) || filesize($output_thumbnail_name) <= 0){
+				echo "died on images";
 				send_SQS(false); // We couldn't seem to get an image for this
 			}else{
 				break;
@@ -143,21 +144,34 @@ if(validate_video($output_file_name)){
 		'fileUpload' => $output_file_name
 	));
 
-	$img_upload_response = $s3->create_object($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME), array(
-		'acl' => AmazonS3::ACL_PUBLIC,
-		'storage' => AmazonS3::STORAGE_REDUCED,
-		'fileUpload' => $output_thumbnail_name
-	));
+	$failed = false;
+	if($args['output_format'] == 'mp4'){
+		$img_upload_response = $s3->create_object($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME), array(
+			'acl' => AmazonS3::ACL_PUBLIC,
+			'storage' => AmazonS3::STORAGE_REDUCED,
+			'fileUpload' => $output_thumbnail_name
+		));
+
+		if($v_upload_response->isOK() && $img_upload_response->isOK()){ }else{
+			$failed = true;
+		}
+	}else{
+		if($v_upload_response->isOK()){ }else{
+			$failed = true;
+		}
+	}
+
 
 	// If they uploaded fine lets cURL a success containing the possible URLs etc
-	if($v_upload_response->isOK() & $img_upload_response->isOK()){
+	if(!$failed){
 		echo "everything went ok";
 		send_SQS(true, array(
 			'url' => $s3->get_object_url($args['bucket'], pathinfo($output_file_name, PATHINFO_BASENAME)),
-			'thumbnail' => $s3->get_object_url($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME)),
+			'thumbnail' => $args['output_format'] == 'mp4' ? $s3->get_object_url($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME)) : '',
 			'duration' => (int)($duration*1000)
 		));
 	}else{
+		echo "Shit coluldn't upload";
 		send_SQS(false); /* FAIL */
 	}
 }else{

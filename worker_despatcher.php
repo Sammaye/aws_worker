@@ -23,7 +23,7 @@ $sqs = new AmazonSQS(array(
  * So I have my repo and my code and I have lock. Lets start this shit
  */
 $sqs_message = $sqs->receive_message(QUEUE, array(
-    'VisibilityTimeout' => 120
+    'VisibilityTimeout' => 240
 ));
 
 if(!isset($sqs_message->body->ReceiveMessageResult->Message)){
@@ -69,6 +69,7 @@ echo 'PID: '.$PID;
 
 if(strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
 	echo "No process found!!";
+	$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 10);
 	flock($fp, LOCK_UN);    // release the lock // Don't delete the SQS message could the process might not have run at all
 	fclose($fp);
 	exit();

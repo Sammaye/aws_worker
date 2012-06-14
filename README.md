@@ -7,6 +7,18 @@ This worker basically takes an input FFMpeg file and output format and encodes t
 
 Due to the validation functions that are needed to be run you cannot send in your own FFMpeg commands but instead must use the ones baked into the script itself.
 
+## Sending commands to the worker
+
+The worker takes JSON syntax in a string.
+
+Here is a sample of a OGV command:
+
+    {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "ogv", "output_queue": "https://us-west-2.queue.amazonaws.com/663341881510/outputsQueue"}
+
+And here is one of a MP4 command:
+
+    {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "mp4", "output_queue": "https://us-west-2.queue.amazonaws.com/663341881510/outputsQueue"}
+
 ## Outputs Supported
 
 - mp4
