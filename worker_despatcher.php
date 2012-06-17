@@ -11,10 +11,10 @@ if(!file_exists(ROOT.'/worker/lock.file')){
 
 $fp = fopen(ROOT."/worker/lock.file", "r+");
 if (!flock($fp, LOCK_EX)) {  // acquire an exclusive lock
-	log('Couold not get lock');
+	logEvent('Couold not get lock');
    	exit(); // Could not aquire as such just die
 }
-log('Got Lock!');
+logEvent('Got Lock!');
 
 $sqs = new AmazonSQS(array(
 	'key' => AWS_KEY,
@@ -29,7 +29,7 @@ $sqs_message = $sqs->receive_message(QUEUE, array(
 ));
 
 if(!isset($sqs_message->body->ReceiveMessageResult->Message)){
-	log('No Message Found, releasing lock');
+	logEvent('No Message Found, releasing lock');
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
 	exit();
@@ -41,7 +41,7 @@ $message = json_decode($sqs_message->body->ReceiveMessageResult->Message->Body);
  */
 if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isset($message->bucket) || !isset($message->input_file) || !isset($message->output_format)
 			|| !isset($message->output_queue)){
-	log("The SQS Message was Malformed");
+	logEvent("The SQS Message was Malformed");
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
 	exit();
@@ -64,7 +64,7 @@ foreach($args as $k=>$v){
 	$arg_string .= ' --'.$k.'='.$v;
 }
 
-log('Calling process');
+logEvent('Calling process');
 
 //exec(sprintf("%s > %s 2>&1 & echo $! >> %s", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output'], ROOT."/worker/encoder.log", "./pid.file"));
 $PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php".$arg_string, ROOT."/worker/encoder.log"));
@@ -72,7 +72,7 @@ echo 'PID: '.$PID;
 //$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
 if(strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
-	log("No process found!!");
+	logEvent("No process found!!");
 	$sqs->change_message_visibility(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle, 10);
 	flock($fp, LOCK_UN);    // release the lock // Don't delete the SQS message could the process might not have run at all
 	fclose($fp);
@@ -90,7 +90,7 @@ while(isRunning($PID)){ // Start the loop to wait until the task is complete
 	sleep(30);
 }
 
-log("Done! Deleting Message.");
+logEvent("Done! Deleting Message.");
 $sqs->delete_message(QUEUE, $sqs_message->body->ReceiveMessageResult->Message->ReceiptHandle);
 
 flock($fp, LOCK_UN);    // release the lock
