@@ -344,7 +344,6 @@ function send_SQS($success, $fields = array()){
 	global $sqs;
 	global $args;
 
-	global $output_temp_file;
 	global $output_file_name;
 	global $output_thumbnail_name;
 
