@@ -68,7 +68,7 @@ logEvent('Calling process');
 
 //exec(sprintf("%s > %s 2>&1 & echo $! >> %s", "php ".ROOT."/worker/encoder.php --input=".$message['input']." --output=".$message['output'], ROOT."/worker/encoder.log", "./pid.file"));
 $PID = exec(sprintf("%s > %s 2>&1 & echo $!", "php ".ROOT."/worker/encoder.php".$arg_string, ROOT."/worker/encoder.log"));
-echo 'PID: '.$PID;
+logEvent('PID: '.$PID);
 //$PID = shell_exec("nohup php ./worker/encoder.php 2> ./worker/encoder.log & echo $!");
 
 if(strlen($PID) <= 0){ // This denotes that no PID was returned, this could mean the process couldn't run for some reason
