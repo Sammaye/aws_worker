@@ -1,6 +1,7 @@
 <?php
 require_once 'aws/sdk.class.php';
 define('ROOT', dirname(__FILE__));
+define('APP_ROOT', '/usr/local/bin/');
 
 global $s3;
 global $sqs;
@@ -36,7 +37,7 @@ if((!file_exists($input_file_name)) || filesize($input_file_name) <= 1){
 	send_SQS(false, array('reason' => 'Failed to download correctly'));
 }
 
-exec("ffprobe -show_format -show_streams $input_file_name", $output); // Let's butt probe this file to find out if it's valid
+exec(APP_ROOT."ffprobe -show_format -show_streams $input_file_name", $output); // Let's butt probe this file to find out if it's valid
 //print_r($output);
 
 // Now lets get the info we need to validate and get duration
@@ -75,15 +76,15 @@ if(!empty($output)){
  * LETS ENCODE!!!!
  */
 if($args['output_format'] == 'mp4'){
-	$command = "ffmpeg -i $input_file_name -vcodec libx264 -r 100 -bt 300k -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
+	$command = APP_ROOT."ffmpeg -i $input_file_name -vcodec libx264 -r 100 -bt 300k -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
 }elseif($args['output_format'] == 'ogv'){
-	$command = "ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 6 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
+	$command = APP_ROOT."ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 6 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
 }
 
 exec($command, $encoding_output); //-s 640:480 -aspect 4:3 -r 65535/2733 -qscale 5 -ac 2 -ar 48000 -ab 192k
 
 if($args['output_format'] == 'mp4')
-	exec("qt-faststart $output_temp_file $output_file_name");
+	exec(APP_ROOT."qt-faststart $output_temp_file $output_file_name");
 
 echo "The command ran was: ".$command;
 //var_dump($encoding_output);
@@ -115,7 +116,7 @@ if(validate_video($output_file_name)){
 			 * For the first 4 tries lets get a random image
 			 */
 			$int_duration = rand(0, $matches[0] > 600 ? 600 : $matches[0]); // Let's limit the thumb time span by 10 mins cos else it takes a while
-			exec("ffmpeg -itsoffset -$int_duration -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
+			exec(APP_ROOT."ffmpeg -itsoffset -$int_duration -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
 
 			if(file_exists($output_thumbnail_name) && filesize($output_thumbnail_name) > 0){ break; } // If we've got our image lets carry on
 		}else{
@@ -123,7 +124,7 @@ if(validate_video($output_file_name)){
 			/*
 			 * Last ditch attempt, get the first second
 			 */
-			exec("ffmpeg -itsoffset -1 -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
+			exec(APP_ROOT."ffmpeg -itsoffset -1 -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
 
 			if(!file_exists($output_thumbnail_name) || filesize($output_thumbnail_name) <= 0){
 				echo "died on images";
@@ -253,8 +254,8 @@ function validate_video($output_file_name, $output){
 		send_SQS(false, array('reason' => 'Failed post encoding checks: File not exist'));
 	}
 
-	exec("ffprobe -show_format -show_streams $output_file_name", $ffprobe_output);
-	exec("ffmpeg -i $output_file_name 2>&1", $ffmpeg_output);
+	exec(APP_ROOT."ffprobe -show_format -show_streams $output_file_name", $ffprobe_output);
+	exec(APP_ROOT."ffmpeg -i $output_file_name 2>&1", $ffmpeg_output);
 
 	if(empty($ffprobe_output) || empty($ffmpeg_output)){
 		/*
