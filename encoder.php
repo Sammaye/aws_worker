@@ -34,7 +34,7 @@ if($args['output_format'] == 'mp4'){
 }
 $output_thumbnail_name = ROOT."/thumb_$UUID.png";
 
-cURL_file($s3->get_object_url($args['bucket'], $args['input_file']));
+cURL_file($s3->get_object_url($args['bucket'], $args['input_file'], '2 hours'));
 
 if((!file_exists($input_file_name)) || filesize($input_file_name) <= 1){
 	/*
