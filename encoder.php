@@ -7,6 +7,8 @@ global $s3;
 global $sqs;
 global $args;
 
+$UUID = md5( uniqid( rand(1,255).rand(45,80).rand(112,350), true ) );
+
 $args = getArgs($_SERVER['argv']);
 
 $s3 = new AmazonS3(array(
@@ -21,12 +23,12 @@ $sqs = new AmazonSQS(array(
 
 $input_file_name = ROOT."/input_file";
 if($args['output_format'] == 'mp4'){
-	$output_file_name = ROOT."/randomoutput.mp4";
 	$output_temp_file = ROOT."/random_output_tmp.mp4";
+	$output_file_name = ROOT."/$UUID.mp4";
 }else{
-	$output_file_name = ROOT."/randomoutput.ogv";
+	$output_file_name = ROOT."/$UUID.ogv";
 }
-$output_thumbnail_name = ROOT."/image_output_file.png";
+$output_thumbnail_name = ROOT."/thumb_$UUID.png";
 
 cURL_file($s3->get_object_url($args['bucket'], $args['input_file']));
 
