@@ -7,6 +7,10 @@ global $s3;
 global $sqs;
 global $args;
 
+global $output_temp_file;
+global $output_file_name;
+global $output_thumbnail_name;
+
 $UUID = md5( uniqid( rand(1,255).rand(45,80).rand(112,350), true ) );
 
 $args = getArgs($_SERVER['argv']);
@@ -341,6 +345,10 @@ function send_SQS($success, $fields = array()){
 	global $sqs;
 	global $args;
 
+	global $output_temp_file;
+	global $output_file_name;
+	global $output_thumbnail_name;
+
 	$response = $sqs->send_message($args['output_queue'], json_encode(array_merge(array(
 		'id' => $args['id'],
 		'output_format' => $args['output_format'],
@@ -354,6 +362,16 @@ function send_SQS($success, $fields = array()){
 	), $fields)));
 
 	if($response->isOk()){}
+
+	/*
+	 * Delete the files used so we save space
+	 */
+	unlink($output_file_name);
+	unlink($output_thumbnail_name);
+
+	if($args['output_format'] == 'mp4')
+		unlink($output_temp_file);
+
 	exit(); // Send SQS is a one way ticket....a ticket to HELL
 }
 
