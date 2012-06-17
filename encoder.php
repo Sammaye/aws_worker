@@ -7,7 +7,6 @@ global $s3;
 global $sqs;
 global $args;
 
-global $output_temp_file;
 global $output_file_name;
 global $output_thumbnail_name;
 
@@ -368,9 +367,6 @@ function send_SQS($success, $fields = array()){
 	 */
 	unlink($output_file_name);
 	unlink($output_thumbnail_name);
-
-	if($args['output_format'] == 'mp4')
-		unlink($output_temp_file);
 
 	exit(); // Send SQS is a one way ticket....a ticket to HELL
 }
