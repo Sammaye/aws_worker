@@ -139,7 +139,7 @@ if(preg_match('/Error while opening encoder/', $encoding_output_string) > 0){
 /**
  * Now lets see if it validates and if it does lets put the finishing touches on
  */
-if(validate_video($output_file_name) || $args['output_format'] == 'img'){
+if(validate_video($output_file_name) || $args['output_format'] == 'img' /* If we are outputting an image we have already validated it */){
 
 	/*
 	 * Now lets recursively upload the video and its thumbnail back to S3 like good boys
