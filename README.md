@@ -17,6 +17,10 @@ You must use a bootstrapper cronjob to get this worker to function. An example o
     const AWS_SECRET = '';
     const QUEUE = '';
 
+	function logEvent($message){
+		echo '[ '.date('d-m-Y H:i:s').' '.microtime(true).' ] '.$message.'\n';
+	}
+
     exec('git clone https://github.com/Sammaye/aws_worker.git '.ROOT.'/worker');
 
     if(!file_exists(ROOT.'/worker/worker_despatcher.php')){
@@ -45,12 +49,17 @@ And here is one of a MP4 command:
 
     {"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "uploads", "output_format": "mp4", "output_queue": "https://us-west-2.queue.amazonaws.com//outputsQueue"}
 
+And here is an example of getting a thumbnail of your video:
+
+	{"input_file": "4fa54b3ccacf54cb250000d8.divx", "bucket": "videos.stagex.co.uk", "output_format": "img", "output_queue": "https://us-west-2.queue.amazonaws.com/663341881510/stagex-outputsQueue"}
+
 You would send these strings as the message body in a SQS Message to your main input queue to either your server pooler or your cloud formation template.
 
 ## Outputs Supported
 
 - mp4
 - ogv
+- img
 
 These output labels go into the output_format field within the JSON encoded SQS message body.
 
