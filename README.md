@@ -7,6 +7,10 @@ This worker basically takes an input FFMpeg file and output format and encodes t
 
 Due to the validation functions that are needed to be run you cannot send in your own FFMpeg commands but instead must use the ones baked into the script itself.
 
+## Examples
+
+There is now an example Cloudformation template for this worker [here](https://github.com/Sammaye/vidcoder_cloudformation). All the documentation needed to get it working is in its readme.
+
 ## Getting it to run
 
 You must use a bootstrapper cronjob to get this worker to function. An example of one is:
