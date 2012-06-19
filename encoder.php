@@ -28,10 +28,11 @@ $input_file_name = ROOT."/input_file";
 if($args['output_format'] == 'mp4'){
 	$output_temp_file = ROOT."/random_output_tmp.mp4";
 	$output_file_name = ROOT."/$UUID.mp4";
-}else{
+}elseif($args['output_format'] == 'ogv'){
 	$output_file_name = ROOT."/$UUID.ogv";
+}elseif($args['output_format'] == 'img'){
+	$output_file_name = ROOT."/thumb_$UUID.png";
 }
-$output_thumbnail_name = ROOT."/thumb_$UUID.png";
 
 cURL_file($s3->get_object_url($args['bucket'], $args['input_file'], '2 hours'));
 
@@ -84,6 +85,38 @@ if($args['output_format'] == 'mp4'){
 	$command = APP_ROOT."ffmpeg -i $input_file_name -vcodec libx264 -r 100 -bt 300k -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
 }elseif($args['output_format'] == 'ogv'){
 	$command = APP_ROOT."ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 6 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
+}elseif($args['output_format'] == 'img'){
+	/*
+	 * From our duration we got earlier lets get a random second between 0 and max second without rounding and check the image file is real by chekcing its size is greater
+	 * than 0
+	 */
+	preg_match('/^[0-9]+/', $duration, $matches); // Lets get a strict int of the duration
+
+	// Lets try it 5 times else we will just get first frame else die mofo
+	for($i=0;$i<5;$i++){
+		if($i < 4){
+			/*
+			 * For the first 4 tries lets get a random image
+			 */
+			$int_duration = rand(0, $matches[0] > 600 ? 600 : $matches[0]); // Let's limit the thumb time span by 10 mins cos else it takes a while
+			exec(APP_ROOT."ffmpeg -itsoffset -$int_duration -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_file_name");
+
+			if(file_exists($output_file_name) && filesize($output_file_name) > 0){ break; } // If we've got our image lets carry on
+		}else{
+
+			/*
+			 * Last ditch attempt, get the first second
+			 */
+			exec(APP_ROOT."ffmpeg -itsoffset -1 -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_file_name");
+
+			if(!file_exists($output_file_name) || filesize($output_file_name) <= 0){
+				echo "died on images";
+				send_SQS(false, array('reason' => 'Could not ascertain an image')); // We couldn't seem to get an image for this
+			}else{
+				break;
+			}
+		}
+	}
 }
 
 exec($command, $encoding_output); //-s 640:480 -aspect 4:3 -r 65535/2733 -qscale 5 -ac 2 -ar 48000 -ab 192k
@@ -106,39 +139,7 @@ if(preg_match('/Error while opening encoder/', $encoding_output_string) > 0){
 /**
  * Now lets see if it validates and if it does lets put the finishing touches on
  */
-if(validate_video($output_file_name)){
-
-	/*
-	 * From our duration we got earlier lets get a random second between 0 and max second without rounding and check the image file is real by chekcing its size is greater
-	 * than 0
-	 */
-	preg_match('/^[0-9]+/', $duration, $matches); // Lets get a strict int of the duration
-
-	// Lets try it 5 times else we will just get first frame else die mofo
-	for($i=0;$i<5;$i++){
-		if($i < 4){
-			/*
-			 * For the first 4 tries lets get a random image
-			 */
-			$int_duration = rand(0, $matches[0] > 600 ? 600 : $matches[0]); // Let's limit the thumb time span by 10 mins cos else it takes a while
-			exec(APP_ROOT."ffmpeg -itsoffset -$int_duration -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
-
-			if(file_exists($output_thumbnail_name) && filesize($output_thumbnail_name) > 0){ break; } // If we've got our image lets carry on
-		}else{
-
-			/*
-			 * Last ditch attempt, get the first second
-			 */
-			exec(APP_ROOT."ffmpeg -itsoffset -1 -i $input_file_name -r 100 -vcodec png -vframes 1 -an -f rawvideo -s 640x480 -y $output_thumbnail_name");
-
-			if(!file_exists($output_thumbnail_name) || filesize($output_thumbnail_name) <= 0){
-				echo "died on images";
-				send_SQS(false, array('reason' => 'Could not ascertain an image')); // We couldn't seem to get an image for this
-			}else{
-				break;
-			}
-		}
-	}
+if(validate_video($output_file_name) || $args['output_format'] == 'img'){
 
 	/*
 	 * Now lets recursively upload the video and its thumbnail back to S3 like good boys
@@ -150,35 +151,20 @@ if(validate_video($output_file_name)){
 	));
 
 	$failed = false;
-	if($args['output_format'] == 'mp4'){
-		$img_upload_response = $s3->create_object($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME), array(
-			'acl' => AmazonS3::ACL_PUBLIC,
-			'storage' => AmazonS3::STORAGE_REDUCED,
-			'fileUpload' => $output_thumbnail_name
-		));
-
-		if($v_upload_response->isOK() && $img_upload_response->isOK()){ }else{
-			$failed = true;
-		}
-	}else{
-		if($v_upload_response->isOK()){ }else{
-			$failed = true;
-		}
+	if($v_upload_response->isOK()){ }else{
+		$failed = true;
 	}
-
 
 	// If they uploaded fine lets cURL a success containing the possible URLs etc
 	if(!$failed){
 		echo "everything went ok";
 		send_SQS(true, array(
 			'url' => $s3->get_object_url($args['bucket'], pathinfo($output_file_name, PATHINFO_BASENAME)),
-			'thumbnail' => $args['output_format'] == 'mp4' ? $s3->get_object_url($args['bucket'], pathinfo($output_thumbnail_name, PATHINFO_BASENAME)) : '',
 			'duration' => (int)($duration*1000)
 		));
 	}else{
-		echo "Shit coluldn't upload";
-		send_SQS(false, array('reason' => 'Could not upload', 'v_upload' => $v_upload_response->isOK(),
-			'img_upload' => $args['output_format'] == 'mp4' ? $img_upload_response->isOK() : true)); /* FAIL */
+		echo "Shit, coluldn't upload";
+		send_SQS(false, array('reason' => 'Could not upload', 'upload_res' => $v_upload_response->isOK())); /* FAIL */
 	}
 }else{
 	send_SQS(false, array('reason' => 'Failed checks')); /* FAIL */
