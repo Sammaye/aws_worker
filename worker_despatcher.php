@@ -39,8 +39,7 @@ $message = json_decode($sqs_message->body->ReceiveMessageResult->Message->Body);
 /*
  * Check integrity of message commands, if something is missing bail
  */
-if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isset($message->bucket) || !isset($message->input_file) || !isset($message->output_format)
-			|| !isset($message->output_queue)){
+if(!isset($message->job_id) || !isset($message->bucket) || !isset($message->input_file) || !isset($message->output_format) || !isset($message->output_queue)){
 	logEvent("The SQS Message was Malformed");
 	flock($fp, LOCK_UN);    // release the lock
 	fclose($fp);
@@ -48,7 +47,7 @@ if(!isset($sqs_message->body->ReceiveMessageResult->Message->MessageId) || !isse
 }
 
 $args = array(
-	'id' => $sqs_message->body->ReceiveMessageResult->Message->MessageId,
+	'id' => $message->job_id,
 	'aws_key' => AWS_KEY,
 	'aws_secret' => AWS_SECRET,
 	'bucket' => $message->bucket,
