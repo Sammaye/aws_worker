@@ -29,7 +29,7 @@ if($args['output_format'] == 'mp4'){
 	$output_temp_file = ROOT."/random_output_tmp.mp4";
 	$output_file_name = ROOT."/$UUID.mp4";
 }elseif($args['output_format'] == 'ogv'){
-	$output_file_name = ROOT."/$UUID.ogv";
+	$output_file_name = ROOT."/$UUID.ogg";
 }elseif($args['output_format'] == 'img'){
 	$output_file_name = ROOT."/thumb_$UUID.png";
 }
