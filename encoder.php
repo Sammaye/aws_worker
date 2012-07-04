@@ -351,7 +351,7 @@ function send_SQS($success, $fields = array()){
 	 * Delete the files used so we save space
 	 */
 	unlink($output_file_name);
-	unlink($output_thumbnail_name);
+	//unlink($output_thumbnail_name);
 
 	exit(); // Send SQS is a one way ticket....a ticket to HELL
 }
