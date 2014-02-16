@@ -82,7 +82,8 @@ if(!empty($output)){
  * LETS ENCODE!!!!
  */
 if($args['output_format'] == 'mp4'){
-	$command = APP_ROOT . "ffmpeg -i $input_file_name -vprofile baseline -vcodec libx264 -r 40 -b:v 5K -s 960x540 -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
+	// -vprofile baseline
+	$command = APP_ROOT . "ffmpeg -i $input_file_name  -vcodec libx264 -r 40 -b:v 5K -s 960x540 -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
 	//$command = APP_ROOT."ffmpeg -i $input_file_name -vcodec libx264 -r 100 -bt 300k -ac 2 -ar 48000 -ab 192k -strict -2 -y $output_temp_file 2>&1";
 }elseif($args['output_format'] == 'ogv'){
 	$command = APP_ROOT."ffmpeg -i $input_file_name -s 640:480 -acodec libvorbis -vcodec libtheora -aspect 4:3 -r 20 -qscale 6 -ac 2 -ab 80k -ar 44100 -y $output_file_name 2>&1";
