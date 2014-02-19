@@ -2,6 +2,7 @@
 require_once 'aws/sdk.class.php';
 define('ROOT', dirname(__FILE__));
 define('APP_ROOT', '/home/ubuntu/bin/');
+define('SBIN_ROOT', '/usr/local/bin/');
 
 global $s3;
 global $sqs;
@@ -125,7 +126,7 @@ if($args['output_format'] == 'mp4'){
 exec($command, $encoding_output); //-s 640:480 -aspect 4:3 -r 65535/2733 -qscale 5 -ac 2 -ar 48000 -ab 192k
 
 if($args['output_format'] == 'mp4')
-	exec(APP_ROOT."qt-faststart $output_temp_file $output_file_name");
+	exec(SBIN_ROOT."qt-faststart $output_temp_file $output_file_name");
 
 echo "The command ran was: ".$command;
 //var_dump($encoding_output);
