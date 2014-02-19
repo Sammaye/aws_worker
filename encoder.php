@@ -1,7 +1,7 @@
 <?php
 require_once 'aws/sdk.class.php';
 define('ROOT', dirname(__FILE__));
-define('APP_ROOT', '/usr/local/bin/');
+define('APP_ROOT', '/home/ubuntu/bin/');
 
 global $s3;
 global $sqs;
@@ -79,7 +79,7 @@ if(!empty($output)){
 /**
  * OK so the file passed initial tests
  *
- * LETS ENCODE!!!!
+ * LETS ENCODE!!!!     
  */
 if($args['output_format'] == 'mp4'){
 	// -b:v 5K
